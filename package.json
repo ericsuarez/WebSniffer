@@ -1,0 +1,19 @@
+{
+  "name": "Escritorio",
+  "version": "1.0.0",
+  "description": "",
+  "main": "listen.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "array-counter": "^1.0.0",
+    "bufferpack": "0.0.6",
+    "ip": "^1.1.5",
+    "raw-socket": "^1.5.1",
+    "sleep": "^5.1.1"
+  }
+}
