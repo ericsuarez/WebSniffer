@@ -1,4 +1,4 @@
-<img src="public/images/logowps.png"  width="200px" height="200px"/>
+<img src="public/images/logowps.png"  width="100px" height="100px"/>
 
 > A WebSniffer for tcp connections attemps, detect connections to closed ports
 
