@@ -1,22 +1,19 @@
-
 var express = require('express');
+var app = express();
+var server = require('http').Server(app);
+var io = require('socket.io')(server);
 var path = require('path');
 var favicon = require('serve-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-var os = require('os')
-var ip = require('ip');
-var arrayCounter = require('array-counter');
-var raw = require ("raw-socket");
-var serverEvent = require('server-event');
-var router = express.Router();
+var EventEmitter = require('events').EventEmitter;
 
 
 
 
+var index = require('./routes/index');
 
-var app = express();
 
 
 
@@ -32,21 +29,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-
-
-app.get('/events', serverEvent, function (req, res) {
-	res.sse('test', "event with name test");
-	res.sse('default event name message');
-});
-
-
-app.get('/', function(req,res){
-	
-	res.render("pepe");
-
-});
-
-
+app.use('/', index);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
@@ -54,8 +37,6 @@ app.use(function(req, res, next) {
 	err.status = 404;
 	next(err);
 });
-
-
 
 // error handler
 app.use(function(err, req, res, next) {
@@ -69,10 +50,11 @@ app.use(function(err, req, res, next) {
 });
 
 
-
-
-
-
+var sleep = require('sleep');
+var os = require('os')
+var ip = require('ip');
+var arrayCounter = require('array-counter');
+var raw = require ("raw-socket");
 
 
 
@@ -101,6 +83,8 @@ function getIp(getip){
 }
 
 
+
+
 /**********  END NECESARY[0] FUNCTIONS ************/
 
 /* CONVERT FLAGS */
@@ -119,7 +103,8 @@ function convert(dec){
 
 /* End Parsing  flags */
 
-var parsed,version,length,sip,dip,elave,sport,dport,seqnumb,acknum,flags,testdata;
+
+
 var blacklist = [];
 var fullscandb = {};
 var halfscandb = {};
@@ -129,135 +114,142 @@ var finscandb = {};
 var waiting = [];
 var threewayhandshake = [];
 var scannedports = {};
-var oldata = "" ;
-var newdata;
 
 var data,dataforthreewaycheck,dbdata,reverse;
 
 var lanip = ip.address() // my lanip
 
+io.on('connection', function (socket) {
 
-function count(array,single){
-	var count = 0;
-	for(var i = 0; i < array.length; ++i){
-		if(array[single])
-			count++;
-	}
-}
-
-
-
-function threewaycheck(sip,dip,sport,dport,seqnum,acknum,flags){
-	data = sip+":"+ sport +"->"+dip+":"+dport+"_"+seqnum+"_"+acknum+"_"+flags.join("/");
-	
-	if(flags.indexOf("SYN") >= 0 && flags.length == 1){
-		if(seqnum > 0 && acknum === 0){
-			waiting.push(seqnum+"_"+acknum+"_"+sip+":"+sport+"->"+dip+":"+dport);
+	function count(array,single){
+		var count = 0;
+		for(var i = 0; i < array.length; ++i){
+			if(array[single])
+				count++;
 		}
 	}
-	else if (flags.indexOf("SYN") >= 0 && flags.indexOf("ACK") >= 0 && flags.length ==2){
-		for(i in waiting){
-			pieces = waiting[i].split("_");
-			olseq = pieces[0];
-			olack = pieces[1];
 
-			if(parseInt(acknum) == parseInt(olseq)+1){
-				var index = waiting.indexOf(waiting[i]);
-				waiting.splice(index, 1);
+
+
+	function threewaycheck(sip,dip,sport,dport,seqnum,acknum,flags){
+		data = sip+":"+ sport +"->"+dip+":"+dport+"_"+seqnum+"_"+acknum+"_"+flags.join("/");
+
+		if(flags.indexOf("SYN") >= 0 && flags.length == 1){
+			if(seqnum > 0 && acknum === 0){
 				waiting.push(seqnum+"_"+acknum+"_"+sip+":"+sport+"->"+dip+":"+dport);
-				break;
 			}
 		}
-	}
+		else if (flags.indexOf("SYN") >= 0 && flags.indexOf("ACK") >= 0 && flags.length ==2){
+			for(i in waiting){
+				pieces = waiting[i].split("_");
+				olseq = pieces[0];
+				olack = pieces[1];
 
-	else if(flags.indexOf("ACK") >= 0 && flags.length==1){
-		for(i in waiting){
-			pieces = waiting[i].split("_");
-			olseq = pieces[0];
-			olack = pieces[1];
-			if(seqnum == olack && parseInt(acknum) == parseInt(olseq)+1){
-				var index = waiting.indexOf(waiting[i]);
-				waiting.splice(index, 1);
-				threewayhandshake.push(sip+":"+sport+"->"+dip+":"+dport);
-				break;
-			}
-		}
-	}
-}
-
-
-
-function scancheck(sip,dip,sport,dport,seqnum,acknum,flags){
-	
-	data = data = sip+":"+ sport +"->"+dip+":"+dport+"_"+seqnum+"_"+acknum+"_"+flags.join("/");
-	dataforthreewaycheck = sip+":"+sport+"->"+dip+":"+dport;
-	dbdata = sip+"->"+dip;
-	reverse = dip+"->"+sip;
-	if(halfconnectscan(sip,dip,sport,dport,seqnum,acknum,flags)){
-		returned = halfconnectscan(sip,dip,sport,dport,seqnum,acknum,flags);
-		if(typeof(returned) == String){
-			console.log(returned);
-		}
-		else 
-			console.log(" Port Scanning: Attempt to conect a closed port " + dport + " from " + sip + "->" + sport);
-	}
-
-
-	else if(fullconnectscan(sip,dip,sport,dport,seqnum,acknum,flags)){
-		returned = fullconnectscan(sip,dip,sport,dport,seqnum,acknum,flags);
-		if(typeof(returned) == String){
-			console.log(returned);
-		}
-		else
-			console.log(" Port Scanning: Attempt to conect a closed port " + dport + " from " + sip + "->" + sport);
-	}
-
-	else if(xmasscan(sip,dip,sport,dport,seqnum,acknum,flags)){
-		console.log("XMAS scan detected!");
-	}
-	else if(finscan(sip,dip,sport,dport,seqnum,acknum,flags)){
-		console.log(" FIN scan detected!");
-	}
-	else if(nullscan(sip,dip,sport,dport,seqnum,acknum,flags)){
-		console.log("NULL scan detected!");
-	}
-
-}
-
-
-
-function fullconnectscan(sip,dip,sport,dport,seqnum,acknum,flags){
-
-	if(scannedports[dip] != undefined){
-		scannedports[dip].push(sport);
-	} 
-	else{
-		scannedports[dip] = [];
-		scannedports[dip].push(sport);
-	} 
-
-	if(dataforthreewaycheck in threewayhandshake){
-
-		if(flags.indexOf("ACK") >= 0 && flags.indexOf("RST") >= 0 && flags.length == 2){
-			if(fullscandb[dbdata] != undefined){
-				counter = parseInt(fullscandb[dbdata]);
-			}
-			if(counter > 3){
-				if(blacklist.indexOf(dip) < 0){
-					blacklist.push(dip);
+				if(parseInt(acknum) == parseInt(olseq)+1){
+					var index = waiting.indexOf(waiting[i]);
+					waiting.splice(index, 1);
+					waiting.push(seqnum+"_"+acknum+"_"+sip+":"+sport+"->"+dip+":"+dport);
+					break;
 				}
-				return "Full scan detected!";
+			}
+		}
+
+		else if(flags.indexOf("ACK") >= 0 && flags.length==1){
+			for(i in waiting){
+				pieces = waiting[i].split("_");
+				olseq = pieces[0];
+				olack = pieces[1];
+				if(seqnum == olack && parseInt(acknum) == parseInt(olseq)+1){
+					var index = waiting.indexOf(waiting[i]);
+					waiting.splice(index, 1);
+					threewayhandshake.push(sip+":"+sport+"->"+dip+":"+dport);
+					break;
+				}
+			}
+		}
+	}
+
+
+
+	function scancheck(sip,dip,sport,dport,seqnum,acknum,flags){
+
+		data = data = sip+":"+ sport +"->"+dip+":"+dport+"_"+seqnum+"_"+acknum+"_"+flags.join("/");
+		dataforthreewaycheck = sip+":"+sport+"->"+dip+":"+dport;
+		dbdata = sip+"->"+dip;
+		reverse = dip+"->"+sip;
+		if(halfconnectscan(sip,dip,sport,dport,seqnum,acknum,flags)){
+			returned = halfconnectscan(sip,dip,sport,dport,seqnum,acknum,flags);
+			if(typeof(returned) == String){
+				console.log(returned);
+			}
+			else {
+				console.log(" Port Scanning: Attempt to conect a closed port " + dport + " from " + sip + "->" + sport);
+				io.emit('black', dport + " from " + sip + "->" + sport);
+			}
+		}
+
+
+		else if(fullconnectscan(sip,dip,sport,dport,seqnum,acknum,flags)){
+			returned = fullconnectscan(sip,dip,sport,dport,seqnum,acknum,flags);
+			if(typeof(returned) == String){
+				console.log(returned);
 			}
 			else{
-				counter++;
-				fullscandb[dbdata] = String(counter);
+				io.emit('black', dport + " from " + sip + "->" + sport);
+				console.log(" Port Scanning: Attempt to conect a closed port " + dport + " from " + sip + "->" + sport);
 			}
+		}
+
+		else if(xmasscan(sip,dip,sport,dport,seqnum,acknum,flags)){
+			io.emit('black',"XMAS " + dport + " from " + sip + "->" + sport);
+			console.log("XMAS scan detected!");
+		}
+		else if(finscan(sip,dip,sport,dport,seqnum,acknum,flags)){
+			io.emit('black',"FIN " + dport + " from " + sip + "->" + sport);
+			console.log(" FIN scan detected!");
+		}
+		else if(nullscan(sip,dip,sport,dport,seqnum,acknum,flags)){
+			io.emit('black',"NULL " + dport + " from " + sip + "->" + sport);
+			console.log("NULL scan detected!");
 		}
 
 	}
 
-	else{
-		if(flags.indexOf("SYN") >= 0 && flags.length == 1){
+
+
+	function fullconnectscan(sip,dip,sport,dport,seqnum,acknum,flags){
+
+		if(scannedports[dip] != undefined){
+			scannedports[dip].push(sport);
+		} 
+		else{
+			scannedports[dip] = [];
+			scannedports[dip].push(sport);
+		} 
+
+		if(dataforthreewaycheck in threewayhandshake){
+
+			if(flags.indexOf("ACK") >= 0 && flags.indexOf("RST") >= 0 && flags.length == 2){
+				if(fullscandb[dbdata] != undefined){
+					counter = parseInt(fullscandb[dbdata]);
+				}
+				if(counter > 3){
+					if(blacklist.indexOf(dip) < 0){
+						
+						blacklist.push(dip);
+					}
+					return "Full scan detected!";
+				}
+				else{
+					counter++;
+					fullscandb[dbdata] = String(counter);
+				}
+			}
+
+		}
+
+		else{
+			if(flags.indexOf("SYN") >= 0 && flags.length == 1){
 			//first connection
 			if(seqnum>0 && acknum==0)
 				halfscandb[dbdata+"_"+seqnum] = dbdata+"_SYN_ACK_"+seqnum+"_"+acknum;
@@ -273,6 +265,7 @@ function fullconnectscan(sip,dip,sport,dport,seqnum,acknum,flags){
 						counter = parseInt(fullscandb[dbdata]);
 						if(counter > 3){
 							if(blacklist.indexOf(dip) < 0 ){
+								
 								blacklist.push(dip);
 							}
 							return true;
@@ -320,6 +313,7 @@ function halfconnectscan(sip,dip,sport,dport,seqnum,acknum,flags){
 		if(halfscandb[reverse+"_"+String(acknum-1)] != undefined){
 			delete halfscandb[reverse+"_"+String(acknum-1)];
 			if(blacklist.indexOf(dip) < 0){
+				
 				blacklist.push(dip);
 			}
 			return true;
@@ -335,6 +329,7 @@ function halfconnectscan(sip,dip,sport,dport,seqnum,acknum,flags){
 	else if(flags.indexOf("RST") >= 0 && flags.length == 1){
 		if(halfscandb[dbdata+"_"+String(seqnum)] != undefined){
 			if(blacklist.indexOf(dip) < 0){
+				
 				blacklist.push(dip);
 			}
 			return " => [Runtime Detection:] Half connect(SYN scan) scan detected!";
@@ -353,8 +348,9 @@ function xmasscan(sip,dip,sport,dport,seqnum,acknum,flags) {
 		scannedports[dip] = [];
 		scannedports[dip].push(sport);
 	} 
-	if(flags.indexOf("FIN") >= 0 && flags.indexOf("URG") >= 0 && flags.indexOf("PSH") >= 0 && flags.length == 3){
+	if(flags.indexOf("FIN") >= 0 && flags.indexOf("URG") >= 0 &&  flags.indexOf("PSH") >= 0 && flags.length == 3){
 		if(blacklist.indexOf(sip) < 0 ){
+			
 			blacklist.push(sip);
 		}
 		return true;
@@ -375,6 +371,7 @@ function finscan(sip,dip,sport,dport,seqnum,acknum,flags){
 	if(threewayhandshake.indexOf(dataforthreewaycheck) < 0){
 		if(flags.indexOf("FIN") >= 0 && flags.length == 1){
 			if(blacklist.indexOf(sip) < 0 ){
+				
 				blacklist.push(sip);
 			}
 			return true;
@@ -394,6 +391,7 @@ function nullscan(sip,dip,sport,dport,seqnum,acknum,flags){
 	}
 	if(flags.length == 0){
 		if(blacklist.indexOf(sip) < 0){
+			
 			blacklist.push(sip);
 		}
 		return true;
@@ -402,44 +400,51 @@ function nullscan(sip,dip,sport,dport,seqnum,acknum,flags){
 }
 
 
+
 //MAIN
 var socketTCP = raw.createSocket ({protocol: raw.Protocol.TCP});
 
+
+
 socketTCP.on ("message", function (buffer, address) {
-	// console.log ("TCP received " + buffer.length + " bytes from " + address
-	// 	+ ": " + buffer.toString ("hex"));
-
-	
-	//IPV4
-	parsed = buffer.toString("hex"); /* the two start bytes are version and length */
-	version = parsed[0]; 
-  	length = (parsed[1] * 64)/16; //5 palabras (5x32 = 160 bits, 20 bytes) 
- 	sip = getIp(parsed.substr(24, 8)); // maybe I can extract the destination ip for cb address, but dont matter
- 	dip = getIp(parsed.substr(32,8));
- 	// timestamp = time.time(); 
- 	elave= undefined;
+		// console.log ("TCP received " + buffer.length + " bytes from " + address
+		// 	+ ": " + buffer.toString ("hex"));
 
 
-	//TCP 
-	sport = hexToDec(parsed.substr(40,4));
-	dport = hexToDec(parsed.substr(44,4));
-	seqnumb = hexToDec(parsed.substr(48,8));
-	ack = hexToDec(parsed.substr(56,8));
-	flags = convert(hexToDec(parsed.substr(66,2)));
-	testdata = sip+":"+sport+"->"+dip+":"+dport;
-	
-	if(threewayhandshake.indexOf(testdata) == -1){
-		threewaycheck(sip,dip,sport,dport,seqnumb,ack,flags);
-	}
-	
-	scancheck(sip,dip,sport,dport,seqnumb,ack,flags);
-	
+		//IPV4
+		var parsed = buffer.toString("hex"); /* the two start bytes are version and length */
+		var version = parsed[0]; 
+  		var length = (parsed[1] * 64)/16; //5 palabras (5x32 = 160 bits, 20 bytes) 
+ 		var sip = getIp(parsed.substr(24, 8)); // maybe I can extract the destination ip for cb address, but dont matter
+ 		var dip = getIp(parsed.substr(32,8));
+ 		// timestamp = time.time(); 
+ 		elave= undefined;
+
+
+		//TCP 
+		var sport = hexToDec(parsed.substr(40,4));
+		var dport = hexToDec(parsed.substr(44,4));
+		var seqnumb = hexToDec(parsed.substr(48,8));
+		var ack = hexToDec(parsed.substr(56,8));
+		var flags = convert(hexToDec(parsed.substr(66,2)));
+		var testdata = sip+":"+sport+"->"+dip+":"+dport;
+		
+
+
+		if(threewayhandshake.indexOf(testdata) == -1){
+			threewaycheck(sip,dip,sport,dport,seqnumb,ack,flags);
+		}
+
+		scancheck(sip,dip,sport,dport,seqnumb,ack,flags);
+		socket.emit('datos', testdata);
+		sleep.sleep(1);
+
+	});
 });
 
 
 
 
-app.listen(3000,function(){
-	console.log("running...");
+server.listen(8080,function(){
+	console.log("running server on port 8080");
 })
-
