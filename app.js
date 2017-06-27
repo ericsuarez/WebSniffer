@@ -1,8 +1,78 @@
-var sleep = require('sleep');
+
+var express = require('express');
+var path = require('path');
+var favicon = require('serve-favicon');
+var logger = require('morgan');
+var cookieParser = require('cookie-parser');
+var bodyParser = require('body-parser');
 var os = require('os')
 var ip = require('ip');
 var arrayCounter = require('array-counter');
 var raw = require ("raw-socket");
+var serverEvent = require('server-event');
+var router = express.Router();
+
+
+
+
+
+var app = express();
+
+
+
+// view engine setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'pug');
+
+// uncomment after placing your favicon in /public
+//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
+app.use(logger('dev'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
+
+
+
+app.get('/events', serverEvent, function (req, res) {
+	res.sse('test', "event with name test");
+	res.sse('default event name message');
+});
+
+
+app.get('/', function(req,res){
+	
+	res.render("pepe");
+
+});
+
+
+
+// catch 404 and forward to error handler
+app.use(function(req, res, next) {
+	var err = new Error('Not Found');
+	err.status = 404;
+	next(err);
+});
+
+
+
+// error handler
+app.use(function(err, req, res, next) {
+  // set locals, only providing error in development
+  res.locals.message = err.message;
+  res.locals.error = req.app.get('env') === 'development' ? err : {};
+
+  // render the error page
+  res.status(err.status || 500);
+  res.render('error');
+});
+
+
+
+
+
+
 
 
 
@@ -31,8 +101,6 @@ function getIp(getip){
 }
 
 
-
-
 /**********  END NECESARY[0] FUNCTIONS ************/
 
 /* CONVERT FLAGS */
@@ -51,8 +119,7 @@ function convert(dec){
 
 /* End Parsing  flags */
 
-
-
+var parsed,version,length,sip,dip,elave,sport,dport,seqnumb,acknum,flags,testdata;
 var blacklist = [];
 var fullscandb = {};
 var halfscandb = {};
@@ -62,6 +129,8 @@ var finscandb = {};
 var waiting = [];
 var threewayhandshake = [];
 var scannedports = {};
+var oldata = "" ;
+var newdata;
 
 var data,dataforthreewaycheck,dbdata,reverse;
 
@@ -125,7 +194,6 @@ function scancheck(sip,dip,sport,dport,seqnum,acknum,flags){
 	dbdata = sip+"->"+dip;
 	reverse = dip+"->"+sip;
 	if(halfconnectscan(sip,dip,sport,dport,seqnum,acknum,flags)){
-		console.log("cumple if");
 		returned = halfconnectscan(sip,dip,sport,dport,seqnum,acknum,flags);
 		if(typeof(returned) == String){
 			console.log(returned);
@@ -285,7 +353,7 @@ function xmasscan(sip,dip,sport,dport,seqnum,acknum,flags) {
 		scannedports[dip] = [];
 		scannedports[dip].push(sport);
 	} 
-	if(flags.indexOf("FIN") >= 0 && flags.indexOf("URG") >= 0 flags.indexOf("PSH") >= 0 && flags.length == 3){
+	if(flags.indexOf("FIN") >= 0 && flags.indexOf("URG") >= 0 && flags.indexOf("PSH") >= 0 && flags.length == 3){
 		if(blacklist.indexOf(sip) < 0 ){
 			blacklist.push(sip);
 		}
@@ -334,7 +402,6 @@ function nullscan(sip,dip,sport,dport,seqnum,acknum,flags){
 }
 
 
-
 //MAIN
 var socketTCP = raw.createSocket ({protocol: raw.Protocol.TCP});
 
@@ -342,35 +409,37 @@ socketTCP.on ("message", function (buffer, address) {
 	// console.log ("TCP received " + buffer.length + " bytes from " + address
 	// 	+ ": " + buffer.toString ("hex"));
 
-
+	
 	//IPV4
-	var parsed = buffer.toString("hex"); /* the two start bytes are version and length */
-	var version = parsed[0]; 
-  	var length = (parsed[1] * 64)/16; //5 palabras (5x32 = 160 bits, 20 bytes) 
- 	var sip = getIp(parsed.substr(24, 8)); // maybe I can extract the destination ip for cb address, but dont matter
- 	var dip = getIp(parsed.substr(32,8));
+	parsed = buffer.toString("hex"); /* the two start bytes are version and length */
+	version = parsed[0]; 
+  	length = (parsed[1] * 64)/16; //5 palabras (5x32 = 160 bits, 20 bytes) 
+ 	sip = getIp(parsed.substr(24, 8)); // maybe I can extract the destination ip for cb address, but dont matter
+ 	dip = getIp(parsed.substr(32,8));
  	// timestamp = time.time(); 
  	elave= undefined;
 
 
 	//TCP 
-	var sport = hexToDec(parsed.substr(40,4));
-	var dport = hexToDec(parsed.substr(44,4));
-	var seqnumb = hexToDec(parsed.substr(48,8));
-	var ack = hexToDec(parsed.substr(56,8));
-	var flags = convert(hexToDec(parsed.substr(66,2)));
-	var testdata = sip+":"+sport+"->"+dip+":"+dport;
+	sport = hexToDec(parsed.substr(40,4));
+	dport = hexToDec(parsed.substr(44,4));
+	seqnumb = hexToDec(parsed.substr(48,8));
+	ack = hexToDec(parsed.substr(56,8));
+	flags = convert(hexToDec(parsed.substr(66,2)));
+	testdata = sip+":"+sport+"->"+dip+":"+dport;
 	
 	if(threewayhandshake.indexOf(testdata) == -1){
 		threewaycheck(sip,dip,sport,dport,seqnumb,ack,flags);
 	}
 	
 	scancheck(sip,dip,sport,dport,seqnumb,ack,flags);
-	console.log("\n\n");
-
-
+	
 });
 
 
 
+
+app.listen(3000,function(){
+	console.log("running...");
+})
 
