@@ -21,7 +21,7 @@
 &nbsp;
 &nbsp;
 &nbsp;
-&nbsp; ![Websn](public/images/logowps.png ")
+&nbsp; ![Websn](public/images/logowps.png)
 
 
 > A WebSniffer for tcp connections attemps, detect connections to closed ports
