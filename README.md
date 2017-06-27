@@ -1,5 +1,5 @@
 <div style="text-align:center">
-<img src="img/mobile.png"/>
+<img src="public/images/logowps.png">
 </div>
 > A WebSniffer for tcp connections attemps, detect connections to closed ports
 
